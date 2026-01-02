@@ -1,0 +1,36 @@
+name: state-anchor: Daily Baseline State Primer
+
+on:
+  schedule:
+    - cron: '0 11 * * *'  # 6:00 AM EST Toronto time (UTC-5)
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  send-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run baseline mailer
+        env:
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          ICLOUD_EMAIL: ${{ secrets.ICLOUD_EMAIL }}
+          ICLOUD_PASSWORD: ${{ secrets.ICLOUD_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+          EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+        run: |
+          python baseline_mailer.py
+
