@@ -22,14 +22,19 @@ def load_prompt():
 
 def generate_reflection(prompt):
     """Generate reflection using Azure OpenAI API"""
+    endpoint = os.environ['AZURE_OPENAI_ENDPOINT'].strip('"\'')
+    # Ensure endpoint has https:// protocol
+    if not endpoint.startswith('http://') and not endpoint.startswith('https://'):
+        endpoint = 'https://' + endpoint
+    
     client = AzureOpenAI(
-        api_key=os.environ['AZURE_OPENAI_API_KEY'],
+        api_key=os.environ['AZURE_OPENAI_API_KEY'].strip('"\''),
         api_version='2024-08-01-preview',
-        azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT']
+        azure_endpoint=endpoint
     )
     
     response = client.chat.completions.create(
-        model=os.environ['AZURE_OPENAI_DEPLOYMENT'],
+        model=os.environ['AZURE_OPENAI_DEPLOYMENT'].strip('"\''),
         messages=[
             {'role': 'system', 'content': 'You are a calm, factual assistant that helps with grounded reflections.'},
             {'role': 'user', 'content': prompt}
