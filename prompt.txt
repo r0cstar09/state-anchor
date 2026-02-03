@@ -29,3 +29,7 @@ Categories to rotate across (choose 2–3 per response, never all):
 End with one grounded conclusion about how these advantages make my current trajectory recoverable and asymmetric, even if progress feels slow.
 
 Keep the tone factual, calm, and adult. No motivational language.
+
+Formatting:
+- Maximum 400 words. Stay within this limit.
+- Use a blank line between each section (e.g. after each advantage heading, after "Clear Advantage", "Structural Importance", etc.) so paragraphs are clearly separated.

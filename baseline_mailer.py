@@ -5,6 +5,7 @@ Generates a gratitude reflection and emails it.
 """
 
 import os
+import re
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -12,6 +13,33 @@ from openai import AzureOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def reflection_to_html(reflection):
+    """Convert reflection text to HTML with proper paragraph and heading spacing."""
+    # Split into blocks by double newline so we get clear paragraph separation
+    blocks = re.split(r'\n\s*\n', reflection)
+    html_parts = []
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        # Escape HTML to avoid injection
+        safe = block.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        # Bold: **text** -> <strong>text</strong>
+        safe = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', safe)
+        # Single newlines within block -> <br>
+        safe = safe.replace('\n', '<br>')
+        if block.startswith('### '):
+            content = safe[4:].lstrip()  # after "### "
+            html_parts.append(
+                f'<h3 style="margin: 1.25em 0 0.5em 0; font-size: 1.05em;">{content}</h3>'
+            )
+        else:
+            html_parts.append(
+                f'<p style="margin: 0 0 1em 0;">{safe}</p>'
+            )
+    return '\n'.join(html_parts)
 
 
 def load_prompt():
@@ -39,16 +67,16 @@ def generate_reflection(prompt):
             {'role': 'system', 'content': 'You are a calm, factual assistant that helps with grounded reflections.'},
             {'role': 'user', 'content': prompt}
         ],
-        max_tokens=450,
+        max_tokens=550,
         temperature=0.7
     )
     
     reflection = response.choices[0].message.content.strip()
     
-    # Ensure output is around 350 words
+    # Cap at 400 words
     words = reflection.split()
-    if len(words) > 350:
-        reflection = ' '.join(words[:350])
+    if len(words) > 400:
+        reflection = ' '.join(words[:400])
     
     return reflection
 
@@ -62,8 +90,8 @@ def send_email(reflection):
     sender_password = os.environ['ICLOUD_PASSWORD'].strip('"\'')
     recipient_email = os.environ['EMAIL_RECIPIENT'].strip('"\'')
     
-    # Convert reflection to HTML (preserve line breaks)
-    reflection_html = reflection.replace('\n', '<br>')
+    # Convert reflection to HTML with proper paragraph and heading spacing
+    reflection_html = reflection_to_html(reflection)
     
     # Create HTML email body with reminder
     html_body = f"""
