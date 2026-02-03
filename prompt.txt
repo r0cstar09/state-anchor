@@ -32,4 +32,5 @@ Keep the tone factual, calm, and adult. No motivational language.
 
 Formatting:
 - Maximum 400 words. Stay within this limit.
-- Use a blank line between each section (e.g. after each advantage heading, after "Clear Advantage", "Structural Importance", etc.) so paragraphs are clearly separated.
+- Put each section heading on its own line with a blank line before and after it. Use bold for headings, e.g. **Advantage: Currency, Capital, and Financial System** then a blank line, then the paragraph.
+- Use the same pattern for sub-sections: **Clear Advantage:** (own line, blank after), then the paragraph; **Structural Importance:** (own line, blank after), then the paragraph; **Expansion of Future Options:** (own line, blank after); **Contrast with Zimbabwe:** (own line, blank after). This creates clear new lines and headings in the email.
