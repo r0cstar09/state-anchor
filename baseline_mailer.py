@@ -26,7 +26,7 @@ def _is_heading_line(line):
     # Bold-only line that looks like a heading (short, or contains key labels)
     if line.startswith('**') and line.endswith('**') and line.count('**') == 2:
         return True
-    if re.match(r'^\*\*(Advantage|Clear Advantage|Structural Importance|Expansion of Future|Contrast with)\b', line, re.I):
+    if re.match(r'^\*\*(Advantage|Clear Advantage|Structural Importance|Expansion of Future|Contrast with|Contrast / What to be grateful for)\b', line, re.I):
         return True
     return False
 
