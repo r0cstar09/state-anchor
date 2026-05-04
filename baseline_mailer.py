@@ -12,8 +12,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Sequence
 
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
-from openai import AzureOpenAI
 
 from canada_fact_bank import (
     ResolvedFact,
@@ -168,38 +169,68 @@ def load_prompt() -> tuple[str, list[ResolvedFact]]:
     return base + "\n\n" + focus_and_evidence, fact_pack
 
 
+def get_required_env(name):
+    """Read required env vars and strip optional wrapping quotes."""
+    value = os.getenv(name, "").strip('"\'')
+    if not value:
+        raise ValueError(f'Missing required environment variable: {name}')
+    return value
+
+
+def get_target_model():
+    """Use full resource name when provided, otherwise default model id."""
+    model_resource = os.getenv('VERTEX_MODEL_RESOURCE', '').strip('"\'')
+    if model_resource:
+        return model_resource
+
+    model = os.getenv('VERTEX_MODEL', 'gemini-2.5-flash').strip('"\'')
+    return model or 'gemini-2.5-flash'
+
+
+def extract_response_text(response):
+    """Safely extract response text from Gemini responses."""
+    if getattr(response, 'text', None):
+        return response.text.strip()
+
+    parts_text = []
+    for candidate in getattr(response, 'candidates', []) or []:
+        content = getattr(candidate, 'content', None)
+        if not content:
+            continue
+        for part in getattr(content, 'parts', []) or []:
+            text = getattr(part, 'text', None)
+            if text:
+                parts_text.append(text)
+
+    aggregated = '\n'.join(parts_text).strip()
+    if aggregated:
+        return aggregated
+
+    raise RuntimeError('No text content returned by Vertex Gemini response.')
+
+
 def generate_reflection(prompt: str, fact_pack: Sequence[ResolvedFact]) -> str:
-    """Generate reflection using Azure OpenAI API."""
-    endpoint = os.environ["AZURE_OPENAI_ENDPOINT"].strip('"\'')
-    if not endpoint.startswith("http://") and not endpoint.startswith("https://"):
-        endpoint = "https://" + endpoint
+    """Generate reflection using Vertex AI Gemini with ADC."""
+    project = get_required_env('GOOGLE_CLOUD_PROJECT')
+    location = os.getenv('GOOGLE_CLOUD_LOCATION', 'us-central1').strip('"\'') or 'us-central1'
+    model = get_target_model()
 
-    client = AzureOpenAI(
-        api_key=os.environ["AZURE_OPENAI_API_KEY"].strip('"\''),
-        api_version="2024-08-01-preview",
-        azure_endpoint=endpoint,
+    client = genai.Client(vertexai=True, project=project, location=location)
+
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=(
+                'You are a calm, factual assistant. '
+                'Never invent numbers, rankings, or policies.'
+            ),
+            temperature=0.35,
+            max_output_tokens=1100
+        )
     )
 
-    response = client.chat.completions.create(
-        model=os.environ["AZURE_OPENAI_DEPLOYMENT"].strip('"\''),
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a calm, factual assistant. "
-                    "Never invent numbers, rankings, or policies."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=1100,
-        temperature=0.35,
-    )
-
-    reflection = (response.choices[0].message.content or "").strip()
-    if not reflection:
-        raise RuntimeError("Model returned empty reflection content.")
-
+    reflection = extract_response_text(response)
     reflection = _truncate_by_words(reflection, MAX_REFLECTION_WORDS)
     reflection = _append_verification_links(reflection, fact_pack)
     return reflection

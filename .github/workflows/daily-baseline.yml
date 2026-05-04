@@ -23,9 +23,10 @@ jobs:
       
       - name: Run baseline mailer
         env:
-          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION || 'us-central1' }}
+          VERTEX_MODEL: ${{ secrets.VERTEX_MODEL || 'gemini-2.5-flash' }}
+          VERTEX_MODEL_RESOURCE: ${{ secrets.VERTEX_MODEL_RESOURCE }}
           ICLOUD_EMAIL: ${{ secrets.ICLOUD_EMAIL }}
           ICLOUD_PASSWORD: ${{ secrets.ICLOUD_PASSWORD }}
           EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
