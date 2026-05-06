@@ -23,10 +23,16 @@ from canada_fact_bank import (
     fact_id_set,
     render_focus_and_evidence,
 )
+from personal_trait_bank import (
+    choose_daily_traits,
+    render_identity_context,
+    render_trait_pack,
+)
 
 load_dotenv()
 
-MAX_REFLECTION_WORDS = 550
+MAX_REFLECTION_WORDS = 900
+MIN_REFLECTION_WORDS = 320
 FACT_ID_RE = re.compile(r"\[(F\d{3})\]")
 
 
@@ -149,7 +155,7 @@ def _append_verification_links(
 
 def load_prompt() -> tuple[str, list[ResolvedFact]]:
     """
-    Load base prompt and append daily focus + source-backed evidence pack.
+    Load base prompt and append daily external + internal evidence packs.
     """
     with open("prompt.txt", "r", encoding="utf-8") as handle:
         base = handle.read().strip()
@@ -166,7 +172,18 @@ def load_prompt() -> tuple[str, list[ResolvedFact]]:
         comparison_label=focus["comparison_label"],
         fact_pack=fact_pack,
     )
-    return base + "\n\n" + focus_and_evidence, fact_pack
+    trait_pack = choose_daily_traits(day_of_year=day_of_year, count=4)
+    traits_section = render_trait_pack(trait_pack)
+    identity_section = render_identity_context()
+    return (
+        base
+        + "\n\n"
+        + focus_and_evidence
+        + "\n\n"
+        + traits_section
+        + "\n\n"
+        + identity_section
+    ), fact_pack
 
 
 def get_required_env(name):
@@ -209,6 +226,53 @@ def extract_response_text(response):
     raise RuntimeError('No text content returned by Vertex Gemini response.')
 
 
+def _has_required_structure(text: str) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    numbered = []
+    for line in lines:
+        if ". " in line:
+            prefix = line.split(". ", 1)[0]
+            if prefix.isdigit():
+                numbered.append(line)
+    has_5_messages = len(numbered) >= 5
+    gratitude_starts = sum(
+        1 for line in numbered[:5] if "i am grateful" in line.lower()
+    ) >= 5
+    return (
+        has_5_messages
+        and gratitude_starts
+        and len(text.split()) >= MIN_REFLECTION_WORDS
+        and "**Sample for today:**" in text
+        and "**Sources (Fact IDs):**" in text
+    )
+
+
+def _missing_requirements(text: str) -> list[str]:
+    missing = []
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    numbered = []
+    for line in lines:
+        if ". " in line:
+            prefix = line.split(". ", 1)[0]
+            if prefix.isdigit():
+                numbered.append(line)
+
+    if len(numbered) < 5:
+        missing.append("5 numbered daily messages")
+    gratitude_starts = sum(
+        1 for line in numbered[:5] if "i am grateful" in line.lower()
+    )
+    if gratitude_starts < 5:
+        missing.append('messages should start with "I am grateful"')
+    if len(text.split()) < MIN_REFLECTION_WORDS:
+        missing.append("more expansive paragraphs (minimum length not met)")
+    if "**Sample for today:**" not in text:
+        missing.append("**Sample for today:** section")
+    if "**Sources (Fact IDs):**" not in text:
+        missing.append("**Sources (Fact IDs):** section")
+    return missing
+
+
 def generate_reflection(prompt: str, fact_pack: Sequence[ResolvedFact]) -> str:
     """Generate reflection using Vertex AI Gemini with ADC."""
     project = get_required_env('GOOGLE_CLOUD_PROJECT')
@@ -217,20 +281,42 @@ def generate_reflection(prompt: str, fact_pack: Sequence[ResolvedFact]) -> str:
 
     client = genai.Client(vertexai=True, project=project, location=location)
 
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=(
-                'You are a calm, factual assistant. '
-                'Never invent numbers, rankings, or policies.'
-            ),
-            temperature=0.35,
-            max_output_tokens=1100
+    full_prompt = prompt
+    for attempt in range(3):
+        response = client.models.generate_content(
+            model=model,
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    'You are a direct gratitude and identity reinforcement assistant. '
+                    'Focus on control, clarity, discipline, and execution. '
+                    'Write vivid, inspirational paragraphs with grounded contrasts about '
+                    'how life differs under stronger vs weaker systems. Never invent '
+                    'numbers, rankings, or policies.'
+                ),
+                temperature=0.35 if attempt == 0 else 0.2,
+                max_output_tokens=1800,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            )
         )
-    )
+        reflection = extract_response_text(response)
+        if _has_required_structure(reflection) and len(reflection.split()) >= MIN_REFLECTION_WORDS:
+            break
+        missing = _missing_requirements(reflection)
+        full_prompt = (
+            prompt
+            + "\n\n"
+            + "Your prior response was incomplete. Return the full required structure with "
+            + "all mandatory elements. "
+            + "Missing requirements were: "
+            + ", ".join(missing)
+            + "."
+        )
+    else:
+        raise RuntimeError(
+            "Unable to generate complete gratitude reflection with all required sections."
+        )
 
-    reflection = extract_response_text(response)
     reflection = _truncate_by_words(reflection, MAX_REFLECTION_WORDS)
     reflection = _append_verification_links(reflection, fact_pack)
     return reflection
@@ -253,7 +339,7 @@ def send_email(reflection: str) -> None:
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 680px; margin: 0 auto; padding: 20px;">
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
           <p style="margin: 0; font-size: 14px; color: #666;">
-            <strong>Reminder:</strong> Read this reflection out loud and anchor to the facts.
+            <strong>Reminder:</strong> Read this out loud and let gratitude lead your state.
           </p>
         </div>
         <div style="font-size: 16px; line-height: 1.8;">
