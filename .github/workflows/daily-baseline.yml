@@ -21,6 +21,20 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify ADC is available
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+        run: |
+          test -n "$GOOGLE_APPLICATION_CREDENTIALS"
+          gcloud auth list
+          gcloud config set project "${GOOGLE_CLOUD_PROJECT}"
+          gcloud auth application-default print-access-token >/dev/null
       
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
